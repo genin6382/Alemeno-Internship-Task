@@ -17,3 +17,5 @@ __pycache__/
 *.egg
 *.zip
 *.tar.gz
+migrations/
+.env
