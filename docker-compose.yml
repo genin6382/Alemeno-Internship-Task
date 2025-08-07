@@ -56,14 +56,16 @@ services:
     build:
       context: ./alemenosystem
       dockerfile: Dockerfile
-    command: celery -A alemenosystem worker -l info
+    command: >
+      bash -c "
+        echo 'Waiting for backend to initialize...'
+        sleep 30
+        celery -A alemenosystem worker -l info
+      "
     volumes:
       - ./data:/app/data
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - backend
     environment:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
