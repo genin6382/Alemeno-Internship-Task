@@ -1,0 +1,10 @@
+*.gitignore
+*.md
+*.log
+*.tmp
+*.swp
+*.bak
+*.DS_Store
+LICENSE
+env/
+__pycache__/

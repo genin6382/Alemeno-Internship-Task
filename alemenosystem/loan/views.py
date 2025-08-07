@@ -113,17 +113,25 @@ class LoanEligibilityView(APIView):
     
     def post(self, request):
         """Check loan eligibility for a customer"""
-        serializer = LoanRequestSerializer(data=request.data)
+        # Check if customer_id is provided and valid
+        customer_id = request.data.get('customer_id')
         
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if customer_id is None:
+            return Response(
+                {"customer_id": ["This field is required."]}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        data = serializer.validated_data
-        customer_id = data['customer_id']
-        loan_amount = data['loan_amount']
-        interest_rate = data['interest_rate']
-        tenure = data['tenure']
+        # Try to convert customer_id to integer if it's not already
+        try:
+            customer_id = int(customer_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"customer_id": ["A valid integer is required."]}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
+        # Check if customer exists before validating other fields
         try:
             customer = Customer.objects.get(customer_id=customer_id)
         except Customer.DoesNotExist:
@@ -131,6 +139,22 @@ class LoanEligibilityView(APIView):
                 {"error": "Customer not found"}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        # Create a modified data dict with the validated customer_id
+        request_data = request.data.copy()
+        request_data['customer_id'] = customer_id  # Use the validated integer customer_id
+        
+        # Now validate the rest of the data with the serializer
+        serializer = LoanRequestSerializer(data=request_data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        loan_amount = data['loan_amount']
+        interest_rate = data['interest_rate']
+        tenure = data['tenure']
         
         # Calculate credit score
         credit_score = self.calculate_credit_score(customer)
@@ -176,7 +200,6 @@ class LoanEligibilityView(APIView):
             return Response(response_serializer.data, status=status.HTTP_200_OK)
         
         return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class CreateLoanView(APIView):
     """API View for creating/processing new loans"""
@@ -270,17 +293,25 @@ class CreateLoanView(APIView):
     
     def post(self, request):
         """Process a new loan based on eligibility"""
-        serializer = LoanRequestSerializer(data=request.data)
+        # First check if customer_id is provided and valid
+        customer_id = request.data.get('customer_id')
         
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if customer_id is None:
+            return Response(
+                {"customer_id": ["This field is required."]}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
-        data = serializer.validated_data
-        customer_id = data['customer_id']
-        loan_amount = data['loan_amount']
-        interest_rate = data['interest_rate']
-        tenure = data['tenure']
+        # Try to convert customer_id to integer if it's not already
+        try:
+            customer_id = int(customer_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"customer_id": ["A valid integer is required."]}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
+        # Check if customer exists before validating other fields
         try:
             customer = Customer.objects.get(customer_id=customer_id)
         except Customer.DoesNotExist:
@@ -292,6 +323,22 @@ class CreateLoanView(APIView):
                 'monthly_installment': 0.0
             }
             return Response(response_data, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create a modified data dict with the validated customer_id
+        request_data = request.data.copy()
+        request_data['customer_id'] = customer_id  # Use the validated integer customer_id
+        
+        # Now validate the rest of the data with the serializer
+        serializer = LoanRequestSerializer(data=request_data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        loan_amount = data['loan_amount']
+        interest_rate = data['interest_rate']
+        tenure = data['tenure']
         
         # Calculate credit score
         credit_score = self.calculate_credit_score(customer)
@@ -364,7 +411,8 @@ class CreateLoanView(APIView):
             return Response(response_serializer.data, status=status.HTTP_200_OK)
         
         return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+
 class ViewLoanView(APIView):
     """API View for viewing loan details by loan_id"""
     

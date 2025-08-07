@@ -9,14 +9,6 @@ class LoanRequestSerializer(serializers.Serializer):
     interest_rate = serializers.FloatField()
     tenure = serializers.IntegerField()
 
-    def validate_customer_id(self, value):
-        """Validate that customer exists"""
-        try:
-            Customer.objects.get(customer_id=value)
-        except Customer.DoesNotExist:
-            raise serializers.ValidationError("Customer with this ID does not exist.")
-        return value
-
     def validate_loan_amount(self, value):
         """Validate loan amount is positive"""
         if value <= 0:
@@ -34,7 +26,6 @@ class LoanRequestSerializer(serializers.Serializer):
         if value <= 0:
             raise serializers.ValidationError("Tenure must be greater than 0 months.")
         return value
-
 
 class LoanEligibilityResponseSerializer(serializers.Serializer):
     customer_id = serializers.IntegerField()

@@ -12,10 +12,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
+import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# In your settings.py
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR.parent / 'data'
+DATA_DIR = BASE_DIR / 'data'  # Remove .parent here
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -26,7 +28,7 @@ SECRET_KEY = config('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -67,9 +69,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '10/min',
+        'anon': '15/min',
         'user': '100/min'
-    }
+    }   
 }
 
 
@@ -150,9 +152,8 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# Celery Configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = f'redis://{config("REDIS_HOST", default="localhost")}:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{config("REDIS_HOST", default="localhost")}:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
