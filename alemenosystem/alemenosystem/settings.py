@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'customer',
     'loan',
     'rest_framework',
+    'drf_spectacular'
 ]
 
 MIDDLEWARE = [
@@ -71,7 +72,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '15/min',
         'user': '100/min'
-    }   
+    },
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 
