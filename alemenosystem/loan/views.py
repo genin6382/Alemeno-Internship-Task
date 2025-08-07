@@ -11,7 +11,9 @@ from customer.models import Customer
 from .serializers import (
     LoanRequestSerializer, 
     LoanEligibilityResponseSerializer,
-    CreateLoanResponseSerializer
+    CreateLoanResponseSerializer,
+    ViewLoanResponseSerializer,
+    ViewLoansItemSerializer
 )
 
 class LoanEligibilityView(APIView):
@@ -358,6 +360,163 @@ class CreateLoanView(APIView):
         }
         
         response_serializer = CreateLoanResponseSerializer(data=response_data)
+        if response_serializer.is_valid():
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+class ViewLoanView(APIView):
+    """API View for viewing loan details by loan_id"""
+    
+    def get(self, request, loan_id):
+        """View loan details and customer details"""
+        try:
+            loan = Loan.objects.select_related('customer').get(loan_id=loan_id)
+        except Loan.DoesNotExist:
+            return Response(
+                {"error": "Loan not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Prepare customer data
+        customer_data = {
+            'id': loan.customer.customer_id,
+            'first_name': loan.customer.first_name,
+            'last_name': loan.customer.last_name,
+            'phone_number': loan.customer.phone_number,
+            'age': loan.customer.age
+        }
+        
+        # Prepare loan response data
+        response_data = {
+            'loan_id': loan.loan_id,
+            'customer': customer_data,
+            'loan_amount': float(loan.loan_amount),
+            'interest_rate': float(loan.interest_rate),
+            'monthly_installment': float(loan.monthly_installment),
+            'tenure': loan.tenure
+        }
+        
+        response_serializer = ViewLoanResponseSerializer(data=response_data)
+        if response_serializer.is_valid():
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+        return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ViewLoansView(APIView):
+    """API View for viewing all current loans by customer_id"""
+    
+    def get(self, request, customer_id):
+        """View all current loan details by customer id"""
+        try:
+            customer = Customer.objects.get(customer_id=customer_id)
+        except Customer.DoesNotExist:
+            return Response(
+                {"error": "Customer not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get all current loans (loans that haven't ended yet)
+        current_loans = Loan.objects.filter(
+            customer=customer,
+            end_date__gte=timezone.now().date()
+        )
+        
+        loans_data = []
+        for loan in current_loans:
+            # Calculate repayments left
+            today = timezone.now().date()
+            if loan.start_date <= today <= loan.end_date:
+                # Calculate months passed since loan start
+                months_passed = (today.year - loan.start_date.year) * 12 + (today.month - loan.start_date.month)
+                if today.day < loan.start_date.day:
+                    months_passed -= 1
+                repayments_left = max(0, loan.tenure - loan.emis_paid_on_time)
+            else:
+                repayments_left = loan.tenure - loan.emis_paid_on_time
+            
+            loan_data = {
+                'loan_id': loan.loan_id,
+                'loan_amount': float(loan.loan_amount),
+                'interest_rate': float(loan.interest_rate),
+                'monthly_installment': float(loan.monthly_installment),
+                'repayments_left': repayments_left
+            }
+            loans_data.append(loan_data)
+        
+        # Validate each loan item
+        response_data = []
+        for loan_data in loans_data:
+            loan_serializer = ViewLoansItemSerializer(data=loan_data)
+            if loan_serializer.is_valid():
+                response_data.append(loan_serializer.data)
+            else:
+                return Response(loan_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """Check loan eligibility for a customer"""
+        serializer = LoanRequestSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        customer_id = data['customer_id']
+        loan_amount = data['loan_amount']
+        interest_rate = data['interest_rate']
+        tenure = data['tenure']
+        
+        try:
+            customer = Customer.objects.get(customer_id=customer_id)
+        except Customer.DoesNotExist:
+            return Response(
+                {"error": "Customer not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Calculate credit score
+        credit_score = self.calculate_credit_score(customer)
+        
+        # Determine approval and corrected interest rate
+        approval, corrected_interest_rate = self.determine_approval(credit_score, interest_rate)
+        
+        # Check EMI to salary ratio (50% rule)
+        monthly_installment = 0
+        if approval:
+            # Get current EMIs
+            current_emis = Loan.objects.filter(
+                customer=customer,
+                end_date__gte=timezone.now().date()
+            ).aggregate(
+                total_emi=Sum('monthly_installment')
+            )['total_emi'] or 0
+            
+            # Calculate new EMI
+            new_emi = self.calculate_monthly_installment(
+                loan_amount, corrected_interest_rate, tenure
+            )
+            
+            total_emi = float(current_emis) + new_emi
+            
+            # Check if total EMI exceeds 50% of monthly salary
+            if total_emi > (customer.monthly_salary * 0.5):
+                approval = False
+            else:
+                monthly_installment = new_emi
+        
+        response_data = {
+            'customer_id': customer_id,
+            'approval': approval,
+            'interest_rate': interest_rate,
+            'corrected_interest_rate': corrected_interest_rate,
+            'tenure': tenure,
+            'monthly_installment': monthly_installment
+        }
+        
+        response_serializer = LoanEligibilityResponseSerializer(data=response_data)
         if response_serializer.is_valid():
             return Response(response_serializer.data, status=status.HTTP_200_OK)
         

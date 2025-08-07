@@ -3,7 +3,7 @@ from customer.models import Customer
 
 class Loan(models.Model):
     loan_id = models.IntegerField(unique=True, db_index=True)
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='loans')
+    customer = models.ForeignKey(Customer, to_field='customer_id', on_delete=models.CASCADE, related_name='loans')
     loan_amount = models.DecimalField(max_digits=12, decimal_places=2)
     tenure = models.IntegerField(help_text="Tenure in months")
     interest_rate = models.DecimalField(max_digits=5, decimal_places=2)

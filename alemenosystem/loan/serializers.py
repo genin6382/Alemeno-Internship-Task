@@ -51,3 +51,28 @@ class CreateLoanResponseSerializer(serializers.Serializer):
     loan_approved = serializers.BooleanField()
     message = serializers.CharField()
     monthly_installment = serializers.FloatField()
+
+
+class CustomerDetailsSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    phone_number = serializers.CharField()
+    age = serializers.IntegerField()
+
+
+class ViewLoanResponseSerializer(serializers.Serializer):
+    loan_id = serializers.IntegerField()
+    customer = CustomerDetailsSerializer()
+    loan_amount = serializers.FloatField()
+    interest_rate = serializers.FloatField()
+    monthly_installment = serializers.FloatField()
+    tenure = serializers.IntegerField()
+
+
+class ViewLoansItemSerializer(serializers.Serializer):
+    loan_id = serializers.IntegerField()
+    loan_amount = serializers.FloatField()
+    interest_rate = serializers.FloatField()
+    monthly_installment = serializers.FloatField()
+    repayments_left = serializers.IntegerField()
