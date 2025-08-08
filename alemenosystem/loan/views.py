@@ -15,7 +15,14 @@ from .serializers import (
     ViewLoanResponseSerializer,
     ViewLoansItemSerializer
 )
+from drf_spectacular.utils import extend_schema
 
+@extend_schema(
+    operation_id="LoanAppCheckEligibility",
+    description="Check eligibility via loan app view",
+    request=LoanRequestSerializer,
+    responses={200: LoanEligibilityResponseSerializer}
+)
 class LoanEligibilityView(APIView):
     """API View for checking loan eligibility"""
     
@@ -201,6 +208,12 @@ class LoanEligibilityView(APIView):
         
         return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(
+    operation_id="LoanAppCreateLoan",
+    description="Create a new loan via loan app view",
+    request=LoanRequestSerializer,
+    responses={200: CreateLoanResponseSerializer}
+)
 class CreateLoanView(APIView):
     """API View for creating/processing new loans"""
     
@@ -412,7 +425,11 @@ class CreateLoanView(APIView):
         
         return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+@extend_schema(
+    operation_id="LoanAppViewLoan",
+    description="View loan details by loan_id",
+    responses={200: ViewLoanResponseSerializer}
+)
 class ViewLoanView(APIView):
     """API View for viewing loan details by loan_id"""
     
@@ -450,8 +467,12 @@ class ViewLoanView(APIView):
             return Response(response_serializer.data, status=status.HTTP_200_OK)
         
         return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+    
+@extend_schema(
+    operation_id="LoanAppViewLoans",
+    description="View all current loans by customer_id",
+    responses={200: ViewLoansItemSerializer(many=True)}
+)
 class ViewLoansView(APIView):
     """API View for viewing all current loans by customer_id"""
     
@@ -504,68 +525,3 @@ class ViewLoansView(APIView):
         
         return Response(response_data, status=status.HTTP_200_OK)
     
-    def post(self, request):
-        """Check loan eligibility for a customer"""
-        serializer = LoanRequestSerializer(data=request.data)
-        
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        data = serializer.validated_data
-        customer_id = data['customer_id']
-        loan_amount = data['loan_amount']
-        interest_rate = data['interest_rate']
-        tenure = data['tenure']
-        
-        try:
-            customer = Customer.objects.get(customer_id=customer_id)
-        except Customer.DoesNotExist:
-            return Response(
-                {"error": "Customer not found"}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Calculate credit score
-        credit_score = self.calculate_credit_score(customer)
-        
-        # Determine approval and corrected interest rate
-        approval, corrected_interest_rate = self.determine_approval(credit_score, interest_rate)
-        
-        # Check EMI to salary ratio (50% rule)
-        monthly_installment = 0
-        if approval:
-            # Get current EMIs
-            current_emis = Loan.objects.filter(
-                customer=customer,
-                end_date__gte=timezone.now().date()
-            ).aggregate(
-                total_emi=Sum('monthly_installment')
-            )['total_emi'] or 0
-            
-            # Calculate new EMI
-            new_emi = self.calculate_monthly_installment(
-                loan_amount, corrected_interest_rate, tenure
-            )
-            
-            total_emi = float(current_emis) + new_emi
-            
-            # Check if total EMI exceeds 50% of monthly salary
-            if total_emi > (customer.monthly_salary * 0.5):
-                approval = False
-            else:
-                monthly_installment = new_emi
-        
-        response_data = {
-            'customer_id': customer_id,
-            'approval': approval,
-            'interest_rate': interest_rate,
-            'corrected_interest_rate': corrected_interest_rate,
-            'tenure': tenure,
-            'monthly_installment': monthly_installment
-        }
-        
-        response_serializer = LoanEligibilityResponseSerializer(data=response_data)
-        if response_serializer.is_valid():
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(response_serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
